@@ -183,6 +183,10 @@ void tasklet_logger(unsigned long data)
 	struct logger_data *ldata = (struct logger_data*)data;
 
 	printk("ld->scancode = %d\n", ldata->scancode);	
+	char buf[16];
+	memset(buf, 0, sizeof(buf));
+	sprintf(buf, "[%d]", ldata->scancode);
+	log_write(log_fp, buf, sizeof(buf));
 }
 
 DECLARE_TASKLET(my_tasklet, tasklet_logger, (unsigned long)&ld);
